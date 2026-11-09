@@ -194,6 +194,102 @@ tested de-duplication pass if downstream consumers need it.
 
 ---
 
+## Bonus — AI vs me
+
+After building the scraper by hand, I described it from memory in one prompt and
+asked an AI to build the same thing, then reviewed its output like an engineer.
+The AI's version is **quarantined** in [`ai-version/`](ai-version/) — its own Go
+module, so it never touches the hand-built code or its tests.
+
+### The full prompt (v1)
+
+> Build me a small web scraper in Go. **Target:** `books.toscrape.com`, a public
+> sandbox made for practising scraping. Only scrape the **first 3 catalogue
+> pages** (that's 60 books). Start at the first catalogue page and follow the
+> site's own "next" link to reach pages 2 and 3 — don't hardcode the book URLs.
+> **For each book, collect:** title, the product page URL, the price,
+> availability text, the star rating, and the description. Some books have no
+> description — store null, don't make one up. Turn a price like `£51.77` into a
+> number. Make the book URLs absolute (they're relative on the page). Before
+> saving, check each record has the required fields; if one is bad, put it in
+> `errors.json` with a reason instead of `books.json`. Don't save the same book
+> twice — each URL should appear once. Save the good records to `books.json`. Be
+> polite: send a user-agent that identifies me, set a timeout so it doesn't hang,
+> check the response is 200 before parsing, wait at least half a second between
+> requests, and cache each page so re-running doesn't hit the site again. If a
+> page fails, retry it once, then log it and move on — one broken page shouldn't
+> crash the run. At the end, write a `run-report.json` with: pages fetched, cache
+> hits, valid records, failed pages, and how long it took. Use Go. Keep it simple.
+
+(The full prompt and the v2 rematch prompt live in
+[`ai-version/PROMPT.md`](ai-version/PROMPT.md).)
+
+### Checkpoint results — both versions
+
+| Checkpoint | Hand-built (mine) | AI v1 | AI v2 (rematch) |
+| --- | :---: | :---: | :---: |
+| Collects all 60 books | ✅ | ✅ | ✅ |
+| Rerun doesn't duplicate (same 60) | ✅ | ✅ | ✅ |
+| One bad page doesn't crash the run | ✅ | ✅ | ✅ |
+| Keeps raw `price_text` beside `price_gbp` | ✅ | ❌ | ✅ |
+| Numeric `rating` (1–5), not just the word | ✅ | ❌ | ✅ |
+| Provenance (`source_page`, `fetched_at`) | ✅ | ❌ | ✅ |
+| Does **not** retry a 404/403 | ✅ | ❌ retries it | ✅ |
+| Output order stable across runs | ✅ | ❌ map order shuffles | ✅ |
+| Validates with a schema library | ✅ | ❌ ad-hoc nil check | ✅ |
+| Fields per record | 10 | 6 | 10 |
+
+Both versions pass the three headline checkpoints — the AI genuinely built a
+working scraper. The differences are in everything the prompt left unsaid.
+
+### Three questions
+
+**1. What did the AI do better — and do I understand its code?**
+The AI v1 is a single 230-line `main.go`. For a scraper this small that is
+arguably *more* approachable than my seven packages — a reader follows it top to
+bottom with no hops between files, and there is less ceremony. Yes, I understand
+all of it; nothing in it is magic, and I could defend every line. It made me
+question whether my package split is worth its weight at this size (I kept it,
+because the stages are the assignment and the seams make them testable).
+
+**2. What did it get wrong or silently skip?**
+Three concrete things, none of which it warned me about:
+- **It dropped provenance entirely.** No `source_page`, no `fetched_at`. When a
+  value looks wrong in three weeks, there is no receipt showing where it came
+  from. It also dropped the raw `price_text`, keeping only the parsed number.
+- **It retries a 404.** The prompt said "retry once"; the AI retries *every*
+  failure, so a missing page is requested twice — the opposite of polite. (I
+  confirmed this against `--inject-broken`.)
+- **Its output is content-idempotent but not order-stable.** It de-dupes with a
+  Go map and writes records in map-iteration order, so two runs produce the same
+  60 records in a *different* order — `git diff` would show noise on every run.
+
+**3. What did my prompt forget to say?**
+All three gaps were **my spec's fault, not the model's** — the AI did exactly
+what I wrote. I never said "keep the raw price text," "turn the rating into a
+number," "add source_page and fetched_at," "don't retry a 404," or "sort the
+output." An AI's output is only as good as its specification.
+
+### The rematch (v2)
+
+I added the five missing sentences (see `PROMPT.md`) and regenerated **once**.
+What changed:
+
+- `price_text` is now kept beside `price_gbp`; a numeric `rating` sits beside
+  `rating_text`; `source_page` and `fetched_at` are back — **6 fields → 10**.
+- `fetch` now breaks on a 4xx and only retries timeouts/5xx — the 404 is no
+  longer hit twice.
+- Records are **sorted by URL** before writing, so two runs differ only in the
+  `fetched_at` timestamps (verified: record order and content are identical).
+- Validation moved from an ad-hoc nil check to real **struct-tag schema
+  validation** (`go-playground/validator`), matching the hand-built rule.
+
+With those five lines, the AI version converged on mine. The one thing it still
+does not have is the offline parser **tests** — I never asked for them, and it
+did not volunteer them. That is the whole lesson of the bonus in one line.
+
+---
+
 ## Project layout
 
 ```
@@ -209,5 +305,6 @@ polite-scraper/
 │   └── report/              the run-report shape
 ├── fixtures/                small HTML files for offline parser tests
 ├── output/                  books.json, errors.json, run-report.json (sample committed)
-└── cache/                   generated, git-ignored
+├── cache/                   generated, git-ignored
+└── ai-version/              quarantined "AI vs me" bonus (its own Go module)
 ```
