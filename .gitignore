@@ -1,0 +1,11 @@
+# The cache is generated and can be hundreds of HTML files — never commit it.
+cache/
+
+# Go build artifacts
+/polite-scraper
+*.exe
+
+# Editor noise
+.DS_Store
+.idea/
+.vscode/
