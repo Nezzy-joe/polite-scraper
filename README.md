@@ -1,7 +1,5 @@
 # The polite scraper
 
-FlyRank Internship · Backend Track · Week 5 · Assignment A9
-
 A small, polite scraping pipeline. It downloads the first three catalogue pages
 of the [Books to Scrape](https://books.toscrape.com) practice sandbox, visits
 all 60 book pages, turns messy HTML into clean, schema-checked JSON, survives a

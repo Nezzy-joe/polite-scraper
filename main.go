@@ -37,7 +37,7 @@ const (
 	maxPages    = 3 // the assignment's scope: the first three catalogue pages only
 	politeDelay = 600 * time.Millisecond
 
-	cacheDir = "cache"
+	cacheDir  = "cache"
 	outputDir = "output"
 )
 
