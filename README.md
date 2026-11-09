@@ -170,6 +170,12 @@ only re-render that same HTML, adding seconds and hundreds of megabytes of
 memory per page for nothing. (The deeper case — sites that hide their data in
 JSON endpoints behind JavaScript — is next week's assignment, A16.)
 
+I measured this (see [`stretch/browser-cost/`](stretch/browser-cost/)): on
+`quotes.toscrape.com/js`, a plain HTTP GET finds **0** rendered quotes in **~1 s
+/ ~21 MB**, while headless Chromium via Playwright renders all **10** in **~6 s /
+~135 MB** — roughly **5× slower and 6× the memory** for data that, on
+`books.toscrape.com`, is already sitting in the plain HTML.
+
 ---
 
 ## One honest limitation
@@ -306,5 +312,7 @@ polite-scraper/
 ├── fixtures/                small HTML files for offline parser tests
 ├── output/                  books.json, errors.json, run-report.json (sample committed)
 ├── cache/                   generated, git-ignored
-└── ai-version/              quarantined "AI vs me" bonus (its own Go module)
+├── ai-version/              quarantined "AI vs me" bonus (its own Go module)
+└── stretch/
+    └── browser-cost/        plain HTTP vs headless browser, measured
 ```
